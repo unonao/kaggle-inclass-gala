@@ -1,5 +1,6 @@
 /input/*
 /working/save/*
+/working/output/*
 
 # Editors
 .vscode/
