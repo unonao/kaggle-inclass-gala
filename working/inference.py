@@ -65,10 +65,8 @@ def infer_misc():
     val_acc = []
 
     for fold, (trn_idx, val_idx) in enumerate(folds):
-        if fold > 0:
-            break
 
-        logger.debug('Inference fold {} started'.format(fold))
+        logger.debug('misc fold {} started'.format(fold))
         input_shape=(CFG["img_size_h"], CFG["img_size_w"])
 
         valid_ = train.loc[val_idx,:].reset_index(drop=True)
@@ -104,15 +102,15 @@ def infer_misc():
 
             with torch.no_grad():
                 for _ in range(CFG['tta']):
-                    val_preds += [CFG['weights_misc'][i]/sum(CFG['weights_misc'])/CFG['tta']*inference_one_epoch(model, val_loader, device)]
-                    tst_preds += [CFG['weights_misc'][i]/sum(CFG['weights_misc'])/CFG['tta']*inference_one_epoch(model, tst_loader, device)]
+                    val_preds += [CFG['weights_misc'][i]/sum(CFG['weights_misc'])*inference_one_epoch(model, val_loader, device)]
+                    tst_preds += [CFG['weights_misc'][i]/sum(CFG['weights_misc'])*inference_one_epoch(model, tst_loader, device)]
 
         val_preds = np.mean(val_preds, axis=0)
         val_loss.append(log_loss(valid_.label.values, val_preds))
         val_acc.append((valid_.label.values==np.argmax(val_preds, axis=1)).mean())
 
-    logger.debug('fold {} only misc validation loss = {:.5f}'.format(fold, np.mean(val_loss)))
-    logger.debug('fold {} only misc validation accuracy = {:.5f}'.format(fold, np.mean(val_acc)))
+    logger.debug('only misc validation loss = {:.5f}'.format(np.mean(val_loss)))
+    logger.debug('only misc validation accuracy = {:.5f}'.format(np.mean(val_acc)))
     tst_preds = np.mean(tst_preds, axis=0)
     del model
     torch.cuda.empty_cache()
@@ -141,10 +139,8 @@ def infer_clean(tst_preds_label):
     val_acc = []
 
     for fold, (trn_idx, val_idx) in enumerate(folds):
-        if fold > 0:
-            break
 
-        logger.debug('Inference fold {} started'.format(fold))
+        logger.debug('Clean fold {} started'.format(fold))
 
         input_shape=(CFG["img_size_h"], CFG["img_size_w"])
         valid_ = train.loc[val_idx,:].reset_index(drop=True)
@@ -173,7 +169,6 @@ def infer_clean(tst_preds_label):
         model = GalaImgClassifier(CFG['model_arch'], train.label.nunique()).to(device)
 
         val_preds = []
-        tst_preds = []
 
         #for epoch in range(CFG['epochs']-3):
         for i, epoch in enumerate(CFG['used_epochs_clean']):
@@ -181,15 +176,15 @@ def infer_clean(tst_preds_label):
 
             with torch.no_grad():
                 for _ in range(CFG['tta']):
-                    val_preds += [CFG['weights_clean'][i]/sum(CFG['weights_clean'])/CFG['tta']*inference_one_epoch(model, val_loader, device)]
-                    tst_preds += [CFG['weights_clean'][i]/sum(CFG['weights_clean'])/CFG['tta']*inference_one_epoch(model, tst_loader, device)]
+                    val_preds += [CFG['weights_clean'][i]/sum(CFG['weights_clean'])*inference_one_epoch(model, val_loader, device)]
+                    tst_preds += [CFG['weights_clean'][i]/sum(CFG['weights_clean'])*inference_one_epoch(model, tst_loader, device)]
 
         val_preds = np.mean(val_preds, axis=0)
         val_loss.append(log_loss(valid_.label.values, val_preds))
         val_acc.append((valid_.label.values==np.argmax(val_preds, axis=1)).mean())
 
-    logger.debug('fold {} no misc validation loss = {:.5f}'.format(fold, np.mean(val_loss)))
-    logger.debug('fold {} no misc validation accuracy = {:.5f}'.format(fold, np.mean(val_acc)))
+    logger.debug('no misc validation loss = {:.5f}'.format( np.mean(val_loss)))
+    logger.debug('no misc validation accuracy = {:.5f}'.format( np.mean(val_acc)))
     tst_preds = np.mean(tst_preds, axis=0)
     del model
     torch.cuda.empty_cache()
