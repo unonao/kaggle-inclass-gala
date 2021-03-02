@@ -12,7 +12,7 @@ from sklearn.model_selection import StratifiedKFold
 
 # 引数で config の設定を行う
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', default='./configs/default.json')
+parser.add_argument('--config', default='./configs/clean.json')
 options = parser.parse_args()
 CFG = json.load(open(options.config))
 
@@ -26,7 +26,7 @@ handler_stream.setLevel(DEBUG)
 handler_stream.setFormatter(Formatter("%(asctime)s: %(message)s"))
 #handler2を作成
 config_filename = os.path.splitext(os.path.basename(options.config))[0]
-handler_file = FileHandler(filename=f'./logs/log_clean_{config_filename}_{CFG["model_arch"]}.log')
+handler_file = FileHandler(filename=f'./logs/clean_{config_filename}_{CFG["model_arch"]}.log')
 handler_file.setLevel(DEBUG)
 handler_file.setFormatter(Formatter("%(asctime)s: %(message)s"))
 #loggerに2つのハンドラを設定
@@ -38,8 +38,7 @@ def load_train_df(path):
     train_with_misc["is_misc"] = (train_with_misc["Class"]=="misc")*1
     label_dic = {"Attire":0, "Food":1, "Decorationandsignage":2,"misc":3}
     train_with_misc["label"]=train_with_misc["Class"].map(label_dic)
-    train = train_with_misc[train_with_misc["Class"]!="misc"].reset_index(drop=True)
-    return train
+    return train_with_misc
 
 def main():
 
@@ -51,20 +50,26 @@ def main():
 
     logger.debug(CFG)
 
-    train = load_train_df("../input/gala-images-classification/dataset/train.csv")
+    train_with_misc = load_train_df("../input/gala-images-classification/dataset/train.csv")
 
     seed_everything(CFG['seed'])
 
-    folds = StratifiedKFold(n_splits=CFG['fold_num'], shuffle=True, random_state=CFG['seed']).split(np.arange(train.shape[0]), train.label.values)
+    folds = StratifiedKFold(n_splits=CFG['fold_num'], shuffle=True, random_state=CFG['seed']).split(np.arange(train_with_misc.shape[0]), train_with_misc.label.values)
 
     for fold, (trn_idx, val_idx) in enumerate(folds):
+        train_with_misc.loc[val_idx, "fold"] = fold
+
+    train = train_with_misc[train_with_misc["Class"]!="misc"].reset_index(drop=True)
+    for fold in range(CFG['fold_num']):
+        trn_idx = (train["fold"]!=fold)
+        val_idx = (train["fold"]==fold)
         """
         if fold > 0:
             break
         """
         logger.debug(f'Training with fold {fold} started (train:{len(trn_idx)}, val:{len(val_idx)})')
 
-        train_loader, val_loader = prepare_dataloader(train, (CFG["img_size_h"], CFG["img_size_w"]), trn_idx, val_idx, data_root='../input/gala-images-classification/dataset/Train_Images', train_bs=CFG["train_bs"], valid_bs=CFG["valid_bs"], num_workers=CFG["num_workers"])
+        train_loader, val_loader = prepare_dataloader(train, (CFG["img_size_h"], CFG["img_size_w"]), trn_idx, val_idx, data_root='../input/gala-images-classification/dataset/Train_Images', train_bs=CFG["train_bs"], valid_bs=CFG["valid_bs"], num_workers=CFG["num_workers"], do_fmix=False, do_cutmix=False, transform_way=CFG["transform_way"])
 
         device = torch.device(CFG['device'])
 
@@ -85,7 +90,7 @@ def main():
             with torch.no_grad():
                 valid_one_epoch(epoch, model, loss_fn, val_loader, device, CFG['accum_iter'], CFG['verbose_step'], scheduler=None, schd_loss_update=False)
 
-            torch.save(model.state_dict(),'save/clean_{}_fold_{}_{}'.format(CFG['model_arch'], fold, epoch))
+            torch.save(model.state_dict(),f'save/clean_{config_filename}_{CFG["model_arch"]}_fold_{fold}_{epoch}')
 
         del model, optimizer, train_loader, val_loader,  scheduler
         torch.cuda.empty_cache()

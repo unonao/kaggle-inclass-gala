@@ -27,7 +27,7 @@ handler_stream.setLevel(DEBUG)
 handler_stream.setFormatter(Formatter("%(asctime)s: %(message)s"))
 #handler2を作成
 config_filename = os.path.splitext(os.path.basename(options.config))[0]
-handler_file = FileHandler(filename=f'./logs/log_inference_{config_filename}_{CFG["model_arch"]}.log')
+handler_file = FileHandler(filename=f'./logs/inference_{config_filename}_{CFG["model_arch"]}.log')
 handler_file.setLevel(DEBUG)
 handler_file.setFormatter(Formatter("%(asctime)s: %(message)s"))
 #loggerに2つのハンドラを設定
@@ -70,9 +70,9 @@ def infer_misc():
         input_shape=(CFG["img_size_h"], CFG["img_size_w"])
 
         valid_ = train.loc[val_idx,:].reset_index(drop=True)
-        valid_ds = GalaDataset(valid_, '../input/gala-images-classification/dataset/Train_Images', transforms=get_inference_transforms(input_shape), shape = input_shape, output_label=False)
+        valid_ds = GalaDataset(valid_, '../input/gala-images-classification/dataset/Train_Images', transforms=get_inference_transforms(input_shape, CFG["transform_way"]), shape = input_shape, output_label=False)
 
-        test_ds = GalaDataset(test, '../input/gala-images-classification/dataset/Test_Images', transforms=get_inference_transforms(input_shape),shape=input_shape, output_label=False)
+        test_ds = GalaDataset(test, '../input/gala-images-classification/dataset/Test_Images', transforms=get_inference_transforms(input_shape, CFG["transform_way"]),shape=input_shape, output_label=False)
 
 
         val_loader = torch.utils.data.DataLoader(
@@ -96,9 +96,8 @@ def infer_misc():
 
         val_preds = []
 
-        #for epoch in range(CFG['epochs']-3):
         for i, epoch in enumerate(CFG['used_epochs_misc']):
-            model.load_state_dict(torch.load('save/misc_{}_fold_{}_{}'.format(CFG['model_arch'], fold, epoch)))
+            model.load_state_dict(torch.load(f'save/misc_{config_filename}_{CFG["model_arch"]}_fold_{fold}_{epoch}'))
 
             with torch.no_grad():
                 for _ in range(CFG['tta']):
@@ -144,10 +143,10 @@ def infer_clean(tst_preds_label):
 
         input_shape=(CFG["img_size_h"], CFG["img_size_w"])
         valid_ = train.loc[val_idx,:].reset_index(drop=True)
-        valid_ds = GalaDataset(valid_, '../input/gala-images-classification/dataset/Train_Images', transforms=get_inference_transforms(input_shape), shape=input_shape, output_label=False)
+        valid_ds = GalaDataset(valid_, '../input/gala-images-classification/dataset/Train_Images', transforms=get_inference_transforms(input_shape,CFG["transform_way"]), shape=input_shape, output_label=False)
 
         # misc でないと判断したものを推論する
-        test_ds = GalaDataset(test[tst_preds_label==0], '../input/gala-images-classification/dataset/Test_Images', transforms=get_inference_transforms(input_shape), shape=input_shape, output_label=False)
+        test_ds = GalaDataset(test[tst_preds_label==0], '../input/gala-images-classification/dataset/Test_Images', transforms=get_inference_transforms(input_shape, CFG["transform_way"]), shape=input_shape, output_label=False)
 
         val_loader = torch.utils.data.DataLoader(
             valid_ds,
@@ -172,7 +171,7 @@ def infer_clean(tst_preds_label):
 
         #for epoch in range(CFG['epochs']-3):
         for i, epoch in enumerate(CFG['used_epochs_clean']):
-            model.load_state_dict(torch.load('save/clean_{}_fold_{}_{}'.format(CFG['model_arch'], fold, epoch)))
+            model.load_state_dict(torch.load(f'save/clean_{config_filename}_{CFG["model_arch"]}_fold_{fold}_{epoch}'))
 
             with torch.no_grad():
                 for _ in range(CFG['tta']):

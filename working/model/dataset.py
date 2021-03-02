@@ -49,6 +49,7 @@ class GalaDataset(Dataset):
                 ):
 
         super().__init__()
+        self.shape = shape
         self.df = df.reset_index(drop=True).copy()
         self.transforms = transforms
         self.data_root = data_root
@@ -91,8 +92,8 @@ class GalaDataset(Dataset):
                 lam = np.clip(np.random.beta(self.fmix_params['alpha'], self.fmix_params['alpha']),0.6,0.7)
 
                 # Make mask, get mean / std
-                mask = make_low_freq_image(self.fmix_params['decay_power'], shape)
-                mask = binarise_mask(mask, lam, shape, self.fmix_params['max_soft'])
+                mask = make_low_freq_image(self.fmix_params['decay_power'], self.shape)
+                mask = binarise_mask(mask, lam, self.shape, self.fmix_params['max_soft'])
 
                 fmix_ix = np.random.choice(self.df.index, size=1)[0]
                 fmix_img  = get_img("{}/{}".format(self.data_root, self.df.iloc[fmix_ix][self.image_name_col]))
@@ -106,7 +107,7 @@ class GalaDataset(Dataset):
                 img = mask_torch*img+(1.-mask_torch)*fmix_img
 
                 # mix target
-                rate = mask.sum()/shape[0]/shape[1]
+                rate = mask.sum()/self.shape[0]/self.shape[1]
                 target = rate*target + (1.-rate)*self.labels[fmix_ix]
 
 
@@ -114,16 +115,16 @@ class GalaDataset(Dataset):
             #print(img.sum(), img.shape)
             with torch.no_grad():
                 cmix_ix = np.random.choice(self.df.index, size=1)[0]
-                cmix_img  = get_img("{}/{}".format(self.data_root, self.df.iloc[cmix_ix]['image_id']))
+                cmix_img  = get_img("{}/{}".format(self.data_root, self.df.iloc[cmix_ix]['Image']))
                 if self.transforms:
                     cmix_img = self.transforms(image=cmix_img)['image']
 
                 lam = np.clip(np.random.beta(self.cutmix_params['alpha'], self.cutmix_params['alpha']),0.3,0.4)
-                bbx1, bby1, bbx2, bby2 = rand_bbox(shape, lam)
+                bbx1, bby1, bbx2, bby2 = rand_bbox(self.shape, lam)
 
                 img[:, bbx1:bbx2, bby1:bby2] = cmix_img[:, bbx1:bbx2, bby1:bby2]
 
-                rate = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (shape[0]*shape[1]))
+                rate = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (self.shape[0]*self.shape[1]))
                 target = rate*target + (1.-rate)*self.labels[cmix_ix]
 
         if self.output_label == True:

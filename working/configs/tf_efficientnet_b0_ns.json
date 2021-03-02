@@ -1,0 +1,18 @@
+{
+    "fold_num": 5,
+    "seed": 719,
+    "model_arch": "tf_efficientnet_b0_ns",
+    "img_size_h": 235,
+    "img_size_w": 80,
+    "epochs": 100,
+    "train_bs": 256,
+    "valid_bs": 256,
+    "T_0": 10,
+    "lr": 1e-4,
+    "min_lr": 1e-6,
+    "weight_decay": 1e-6,
+    "num_workers": 6,
+    "accum_iter": 10,
+    "verbose_step": 1,
+    "device": "cuda:0"
+}
