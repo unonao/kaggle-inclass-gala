@@ -18,11 +18,11 @@
     "transform_way": "center",
     "tta": 10,
     "used_epochs": [
-        17,
-        18,
-        19,
-        20,
-        21
+        25,
+        26,
+        27,
+        28,
+        29
     ],
     "weights": [
         1,

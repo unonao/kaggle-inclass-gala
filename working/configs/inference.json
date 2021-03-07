@@ -1,0 +1,4 @@
+{
+    "miscconfig": "./configs/misc.json",
+    "cleanconfig": "./configs/clean.json"
+}

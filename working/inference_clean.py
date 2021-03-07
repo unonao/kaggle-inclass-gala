@@ -14,7 +14,7 @@ from sklearn.metrics import  log_loss
 
 # 引数で config の設定を行う
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', default='./configs/default.json')
+parser.add_argument('--config', default='./configs/clean.json')
 options = parser.parse_args()
 CFG = json.load(open(options.config))
 
@@ -59,11 +59,18 @@ def infer_clean():
     train = load_clean_train_df("../input/gala-images-classification/dataset/train.csv")
     seed_everything(CFG['seed'])
 
-    folds = StratifiedKFold(n_splits=CFG['fold_num']).split(np.arange(train.shape[0]), train.label.values)
+    folds = StratifiedKFold(n_splits=CFG['fold_num'], shuffle=True, random_state=CFG['seed']).split(np.arange(train.shape[0]), train.label.values)
 
     tst_preds = []
     val_loss = []
     val_acc = []
+
+
+    # 行数を揃えた空のデータフレームを作成
+    cols = ["Attire", "Food", "Decorationandsignage"]
+    oof_df = pd.DataFrame(index=[i for i in range(train.shape[0])],columns=cols)
+    y_preds_df = pd.DataFrame(index=[i for i in range(test.shape[0])], columns=cols)
+
     for fold, (trn_idx, val_idx) in enumerate(folds):
         logger.debug('Inference fold {} started'.format(fold))
 
@@ -97,15 +104,17 @@ def infer_clean():
         val_preds = []
 
         #for epoch in range(CFG['epochs']-3):
-        for i, epoch in enumerate(CFG['used_epochs_clean']):
+        for i, epoch in enumerate(CFG['used_epochs']):
             model.load_state_dict(torch.load(f'save/clean_{config_filename}_{CFG["model_arch"]}_fold_{fold}_{epoch}'))
 
             with torch.no_grad():
                 for _ in range(CFG['tta']):
-                    val_preds += [CFG['weights_clean'][i]/sum(CFG['weights_clean'])*inference_one_epoch(model, val_loader, device)]
-                    tst_preds += [CFG['weights_clean'][i]/sum(CFG['weights_clean'])*inference_one_epoch(model, tst_loader, device)]
+                    val_preds += [CFG['weights'][i]/sum(CFG['weights'])*inference_one_epoch(model, val_loader, device)]
+                    tst_preds += [CFG['weights'][i]/sum(CFG['weights'])*inference_one_epoch(model, tst_loader, device)]
 
         val_preds = np.mean(val_preds, axis=0)
+        oof_df.loc[val_idx, cols] = val_preds
+
         # misc を除いたときの validation loss をみる
         indx = valid_["Class"]!="misc"
         val_loss.append(log_loss(valid_.label.values[indx], val_preds[indx]))
@@ -114,10 +123,17 @@ def infer_clean():
         for p in CFG["prob_thres"]:
             label_preds = np.argmax(val_preds, axis=1)
             label_preds[val_preds.max(axis=1)<p] = 3
-            logger.debug('fold {} (p={}) validation accuracy = {:.5f}'.format(fold,p,(valid_.label.values==label_preds).mean()))
+            logger.debug('fold {} (p={}) validation accuracy = {:.5f}'.format(fold, p, (valid_.label.values == label_preds).mean()))
+
     logger.debug('no misc validation loss = {:.5f}'.format( np.mean(val_loss)))
     logger.debug('no misc validation accuracy = {:.5f}'.format( np.mean(val_acc)))
     tst_preds = np.mean(tst_preds, axis=0)
+    y_preds_df.loc[:, cols] = tst_preds #.reshape(len(tst_preds), -1)
+
+    # 予測値を保存
+    oof_df.to_csv(f'output/{config_filename}_{CFG["model_arch"]}_oof.csv', index=False)
+    y_preds_df.to_csv(f'output/{config_filename}_{CFG["model_arch"]}_test.csv', index=False)
+
     del model
     torch.cuda.empty_cache()
     return tst_preds

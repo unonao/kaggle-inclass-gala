@@ -4,7 +4,7 @@
     "model_arch": "tf_efficientnet_b1_ns",
     "img_size_h": 200,
     "img_size_w": 160,
-    "epochs": 30,
+    "epochs": 25,
     "train_bs": 128,
     "valid_bs": 128,
     "T_0": 10,
@@ -15,11 +15,9 @@
     "accum_iter": 20,
     "verbose_step": 1,
     "device": "cuda:0",
-    "transform_way": "center",
+    "transform_way": "resize",
     "tta": 10,
     "used_epochs": [
-        17,
-        18,
         19,
         20,
         21
@@ -27,16 +25,6 @@
     "weights": [
         1,
         1,
-        1,
-        1,
         1
-    ],
-    "prob_thres": [
-        0.00,
-        0.08,
-        0.10,
-        0.12,
-        0.14,
-        0.16
     ]
 }

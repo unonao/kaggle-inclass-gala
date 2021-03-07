@@ -15,18 +15,14 @@
     "accum_iter": 20,
     "verbose_step": 1,
     "device": "cuda:0",
-    "transform_way": "center",
+    "transform_way": "resize",
     "tta": 10,
     "used_epochs": [
-        17,
-        18,
         19,
         20,
         21
     ],
     "weights": [
-        1,
-        1,
         1,
         1,
         1

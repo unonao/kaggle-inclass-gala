@@ -13,7 +13,7 @@ from sklearn.metrics import  log_loss
 
 # 引数で config の設定を行う
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', default='./configs_infer/default.json')
+parser.add_argument('--config', default='./configs/inference.json')
 options = parser.parse_args()
 CFG = json.load(open(options.config))
 
@@ -27,7 +27,7 @@ handler_stream.setLevel(DEBUG)
 handler_stream.setFormatter(Formatter("%(asctime)s: %(message)s"))
 #handler2を作成
 config_filename = os.path.splitext(os.path.basename(options.config))[0]
-handler_file = FileHandler(filename=f'./logs/inference_{config_filename}_{CFG["model_arch"]}.log')
+handler_file = FileHandler(filename=f'./logs/inference_{config_filename}.log')
 handler_file.setLevel(DEBUG)
 handler_file.setFormatter(Formatter("%(asctime)s: %(message)s"))
 #loggerに2つのハンドラを設定
@@ -52,12 +52,13 @@ def load_misc_train_df(path):
     train_with_misc["label"]=train_with_misc["Class"].map(label_dic)
     return train_with_misc
 
-def infer_misc():
+def infer_misc(CFG, config_filename):
+
     logger.debug("pred misc start")
     train = load_misc_train_df("../input/gala-images-classification/dataset/train.csv")
     seed_everything(CFG['seed'])
 
-    folds = StratifiedKFold(n_splits=CFG['fold_num']).split(np.arange(train.shape[0]), train.label.values)
+    folds = StratifiedKFold(n_splits=CFG['fold_num'], shuffle=True, random_state=CFG['seed']).split(np.arange(train.shape[0]), train.label.values)
 
 
     tst_preds = []
@@ -96,13 +97,13 @@ def infer_misc():
 
         val_preds = []
 
-        for i, epoch in enumerate(CFG['used_epochs_misc']):
+        for i, epoch in enumerate(CFG['used_epochs']):
             model.load_state_dict(torch.load(f'save/misc_{config_filename}_{CFG["model_arch"]}_fold_{fold}_{epoch}'))
 
             with torch.no_grad():
                 for _ in range(CFG['tta']):
-                    val_preds += [CFG['weights_misc'][i]/sum(CFG['weights_misc'])*inference_one_epoch(model, val_loader, device)]
-                    tst_preds += [CFG['weights_misc'][i]/sum(CFG['weights_misc'])*inference_one_epoch(model, tst_loader, device)]
+                    val_preds += [CFG['weights'][i]/sum(CFG['weights'])*inference_one_epoch(model, val_loader, device)]
+                    tst_preds += [CFG['weights'][i]/sum(CFG['weights'])*inference_one_epoch(model, tst_loader, device)]
 
         val_preds = np.mean(val_preds, axis=0)
         val_loss.append(log_loss(valid_.label.values, val_preds))
@@ -118,26 +119,31 @@ def infer_misc():
 
 
 def load_clean_train_df(path):
-    "infer_clean 用。バリデーションは、正しいものだけを使う（miscはいれない）"
     train_with_misc = pd.read_csv(path)
     train_with_misc["is_misc"] = (train_with_misc["Class"]=="misc")*1
     label_dic = {"Attire":0, "Food":1, "Decorationandsignage":2,"misc":3}
     train_with_misc["label"]=train_with_misc["Class"].map(label_dic)
-    train = train_with_misc[train_with_misc["Class"]!="misc"].reset_index(drop=True)
-    return train
+    return train_with_misc
 
-def infer_clean(tst_preds_label):
+
+def infer_clean(CFG,config_filename, tst_preds_label):
     logger.debug("pred clean start")
-    train = load_clean_train_df("../input/gala-images-classification/dataset/train.csv")
+    train_with_misc = load_clean_train_df("../input/gala-images-classification/dataset/train.csv")
     seed_everything(CFG['seed'])
 
-    folds = StratifiedKFold(n_splits=CFG['fold_num']).split(np.arange(train.shape[0]), train.label.values)
+    folds = StratifiedKFold(n_splits=CFG['fold_num'], shuffle=True, random_state=CFG['seed']).split(np.arange(train_with_misc.shape[0]), train_with_misc.label.values)
 
     tst_preds = []
     val_loss = []
     val_acc = []
 
     for fold, (trn_idx, val_idx) in enumerate(folds):
+        train_with_misc.loc[val_idx, "fold"] = fold
+
+    train = train_with_misc[train_with_misc["Class"]!="misc"].reset_index(drop=True)
+    for fold in range(CFG['fold_num']):
+        trn_idx = (train["fold"]!=fold)
+        val_idx = (train["fold"] == fold)
 
         logger.debug('Clean fold {} started'.format(fold))
 
@@ -170,13 +176,13 @@ def infer_clean(tst_preds_label):
         val_preds = []
 
         #for epoch in range(CFG['epochs']-3):
-        for i, epoch in enumerate(CFG['used_epochs_clean']):
+        for i, epoch in enumerate(CFG['used_epochs']):
             model.load_state_dict(torch.load(f'save/clean_{config_filename}_{CFG["model_arch"]}_fold_{fold}_{epoch}'))
 
             with torch.no_grad():
                 for _ in range(CFG['tta']):
-                    val_preds += [CFG['weights_clean'][i]/sum(CFG['weights_clean'])*inference_one_epoch(model, val_loader, device)]
-                    tst_preds += [CFG['weights_clean'][i]/sum(CFG['weights_clean'])*inference_one_epoch(model, tst_loader, device)]
+                    val_preds += [CFG['weights'][i]/sum(CFG['weights'])*inference_one_epoch(model, val_loader, device)]
+                    tst_preds += [CFG['weights'][i]/sum(CFG['weights'])*inference_one_epoch(model, tst_loader, device)]
 
         val_preds = np.mean(val_preds, axis=0)
         val_loss.append(log_loss(valid_.label.values, val_preds))
@@ -191,8 +197,14 @@ def infer_clean(tst_preds_label):
 
 if __name__ == '__main__':
     logger.debug(CFG)
-    tst_preds_label_all = infer_misc()
-    tst_preds_label_gala = infer_clean(tst_preds_label_all)
+
+    CFG_misc = json.load(open(CFG["miscconfig"]))
+    config_filename_misc = os.path.splitext(os.path.basename(CFG["miscconfig"]))[0]
+    tst_preds_label_all = infer_misc(CFG_misc, config_filename_misc)
+
+    CFG_clean = json.load(open(CFG["cleanconfig"]))
+    config_filename_clean = os.path.splitext(os.path.basename(CFG["cleanconfig"]))[0]
+    tst_preds_label_gala = infer_clean(CFG_clean, config_filename_clean,tst_preds_label_all)
 
     # 予測結果を保存
     test.loc[tst_preds_label_all==1, 'Class'] = 3
@@ -200,4 +212,4 @@ if __name__ == '__main__':
     label_dic = {0:"Attire", 1:"Food", 2:"Decorationandsignage",3:"misc"}
     test["Class"] = test["Class"].map(label_dic)
     logger.debug(test.value_counts("Class"))
-    test.to_csv(f'output/submission_{config_filename}_{CFG["model_arch"]}.csv', index=False)
+    test.to_csv(f'output/submission_{config_filename}_.csv', index=False)

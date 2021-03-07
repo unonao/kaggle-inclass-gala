@@ -70,16 +70,16 @@ def infer():
 
     for fold, (trn_idx, val_idx) in enumerate(folds):
         """
+        """
         if fold > 0:
             break
-        """
         logger.debug(' fold {} started'.format(fold))
         input_shape=(CFG["img_size_h"], CFG["img_size_w"])
 
         valid_ = train.loc[val_idx,:].reset_index(drop=True)
-        valid_ds = GalaDataset(valid_, '../input/gala-images-classification/dataset/Train_Images', transforms=get_inference_transforms(input_shape,CFG["transform_way"]), shape = input_shape, output_label=False)
+        valid_ds = GalaDataset(valid_, '../input/gala-images-classification/dataset/Train_Images', transforms=get_valid_transforms(input_shape,CFG["transform_way"]), shape = input_shape, output_label=False)
 
-        test_ds = GalaDataset(test, '../input/gala-images-classification/dataset/Test_Images', transforms=get_inference_transforms(input_shape,CFG["transform_way"]),shape=input_shape, output_label=False)
+        test_ds = GalaDataset(test, '../input/gala-images-classification/dataset/Test_Images', transforms=get_valid_transforms(input_shape,CFG["transform_way"]),shape=input_shape, output_label=False)
 
 
         val_loader = torch.utils.data.DataLoader(
@@ -108,9 +108,8 @@ def infer():
             model.load_state_dict(torch.load(f'save/all_{config_filename}_{CFG["model_arch"]}_fold_{fold}_{epoch}'))
 
             with torch.no_grad():
-                for _ in range(CFG['tta']):
-                    val_preds += [CFG['weights'][i]/sum(CFG['weights'])*inference_one_epoch(model, val_loader, device)]
-                    tst_preds += [CFG['weights'][i]/sum(CFG['weights'])*inference_one_epoch(model, tst_loader, device)]
+                val_preds += [CFG['weights'][i]/sum(CFG['weights'])*inference_one_epoch(model, val_loader, device)]
+                tst_preds += [CFG['weights'][i]/sum(CFG['weights'])*inference_one_epoch(model, tst_loader, device)]
 
         val_preds = np.mean(val_preds, axis=0)
         val_loss.append(log_loss(valid_.label.values, val_preds))
