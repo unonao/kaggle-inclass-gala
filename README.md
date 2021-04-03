@@ -1,4 +1,6 @@
 # gala コンペ
+https://www.kaggle.com/c/gala-images-classification/overview
+
 
 ## 大きく効いたこと
 ### pre-processing
